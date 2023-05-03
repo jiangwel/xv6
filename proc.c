@@ -15,7 +15,6 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
-int readcount = 0;
 extern void forkret(void);
 extern void trapret(void);
 
@@ -87,6 +86,7 @@ allocproc(void)
   return 0;
 
 found:
+  p->nice=20;
   p->state = EMBRYO;
   p->pid = nextpid++;
 
@@ -200,6 +200,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  np->nice = curproc->nice;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -323,9 +324,11 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p,*priority_p;
   struct cpu *c = mycpu();
   c->proc = 0;
+  int min_nice=41;
+
   
   for(;;){
     // Enable interrupts on this processor.
@@ -336,23 +339,29 @@ scheduler(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
+      if(p->nice<min_nice){
+        priority_p = p;
+      }
+    }
+    if(min_nice<41){
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+      c->proc = priority_p;
+      switchuvm(priority_p);
+      priority_p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
+
+      swtch(&(c->scheduler), priority_p->context);
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
 
+
+    release(&ptable.lock);
   }
 }
 
@@ -534,8 +543,51 @@ procdump(void)
   }
 }
 
-int
-getreadcount(void)
-{
-  return readcount;
+int setnice(int pid, int nice_value){
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->nice = nice_value;
+      sched();
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+int getnice(int pid){
+  int nice=0;
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      nice = p->nice;
+      release(&ptable.lock);
+      return nice;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+void ps(int pid){
+  struct proc *p;
+  acquire(&ptable.lock);
+  cprintf("pid  ppid  prio  state name\n");
+  if(pid){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pid == pid){
+        cprintf("%d %d  %d  %s  %s",p->pid,p->parent->pid,p->nice,p->state,p->name);
+        break;
+      }
+    }
+  } else {
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      cprintf("%d %d  %d  %s  %s",p->pid,p->parent->pid,p->nice,p->state,p->name);
+    }
+  }
+  release(&ptable.lock);
 }

@@ -1,13 +1,6 @@
 {
     "files.associations": {
         "*.cpp": "cpp",
-        "types.h": "c",
-        "defs.h": "c",
-        "param.h": "c",
-        "memlayout.h": "c",
-        "mmu.h": "c",
-        "x86.h": "c",
-        "proc.h": "c",
-        "spinlock.h": "c"
+        "defs.h": "c"
     }
 }

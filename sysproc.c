@@ -90,6 +90,38 @@ sys_uptime(void)
   return xticks;
 }
 
-int sys_getreadcount(void){
-  return getreadcount();
+int
+sys_yield(void)
+{
+  yield();
+  return 0;
 }
+
+int
+sys_setnice(void)
+{
+  int pid,nice_value;
+  if(argint(0, &pid) < 0)
+    return -1;
+  argint(0, &nice_value);
+  if(nice_value < 0 || nice_value > 40 )
+    return -1;
+  setnice(pid,nice_value);
+  return 0;
+}
+
+int
+sys_getnice(void)
+{
+  int pid;
+  if(argint(0, &pid) < 0)
+    return -1;
+  getnice(pid);
+  return 0;
+}
+int
+sys_ps(){
+  ps();
+  return 0;
+}
+
