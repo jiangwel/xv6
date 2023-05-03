@@ -324,7 +324,7 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p,*priority_p;
+  struct proc *p,*priority_p=ptable.proc;
   struct cpu *c = mycpu();
   c->proc = 0;
   int min_nice=41;
@@ -341,28 +341,27 @@ scheduler(void)
         continue;
       if(p->nice<min_nice){
         priority_p = p;
+        min_nice = p->nice;
       }
     }
+    //means exzit some proc is RUNNABLE, because  nice of all proc is lass than 41
     if(min_nice<41){
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = priority_p;
       switchuvm(priority_p);
-      priority_p->state = RUNNING;
-
+      p->state = RUNNING;
 
       swtch(&(c->scheduler), priority_p->context);
       switchkvm();
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-
-
+    
     release(&ptable.lock);
-  }
+    }
 }
 
 // Enter scheduler.  Must hold only ptable.lock
