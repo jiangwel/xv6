@@ -29,7 +29,7 @@ int main(int argc, char **argv){
 			printf(1, "##### State 2 #####\n");
 		}
 	}
-	
+
 	mypid = getpid();
 	printf(1, "PID %d is finished\n", mypid);
 

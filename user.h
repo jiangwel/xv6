@@ -24,9 +24,6 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 void yield(void);
-int setnice(int pid, int nice_value);
-int getnice(int pid);
-void ps(int pid);
 
 // ulib.c
 int stat(const char*, struct stat*);
