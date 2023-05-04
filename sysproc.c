@@ -100,12 +100,15 @@ sys_yield(void)
 int
 sys_setnice(void)
 {
-  int pid,nice_value;
-  if(argint(0, &pid) < 0)
+  int pid;
+  int nice_value;
+  acquire(&tickslock);
+  if(argint(1, &pid) < 0 || argint(1, &nice_value)<0){
+    release(&tickslock);
     return -1;
-  argint(0, &nice_value);
-  if(nice_value < 0 || nice_value > 40 )
-    return -1;
+  }
+  // cprintf("sys setniece: %d,%d \n",pid,nice_value);
+  release(&tickslock);
   setnice(pid,nice_value);
   return 0;
 }
@@ -114,14 +117,17 @@ int
 sys_getnice(void)
 {
   int pid;
-  if(argint(0, &pid) < 0)
+  if(argint(1, &pid) < 0)
     return -1;
   getnice(pid);
   return 0;
 }
 int
 sys_ps(){
-  ps();
+  int pid;
+  if(argint(1, &pid) < 0)
+    return -1;
+  ps(pid);
   return 0;
 }
 

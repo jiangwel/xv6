@@ -324,40 +324,39 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p,*priority_p=ptable.proc;
+  struct proc *p;
+  struct proc *e;
+  // struct proc *priority_p=ptable.proc;
   struct cpu *c = mycpu();
   c->proc = 0;
-  int min_nice=41;
+  // int min_nice=41;
 
-  
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+    
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-      if(p->nice<min_nice){
-        priority_p = p;
-        min_nice = p->nice;
+    int min_nice=41;
+    for(e = ptable.proc; e < &ptable.proc[NPROC]; e++){
+      // cprintf("e is %d nice is %d \n",e->pid,e->nice);
+      if(e->state == RUNNABLE && e->nice<min_nice){
+        min_nice = e->nice;
       }
     }
-    //means exzit some proc is RUNNABLE, because  nice of all proc is lass than 41
-    if(min_nice<41){
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = priority_p;
-      switchuvm(priority_p);
-      p->state = RUNNING;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      // cprintf("current nice is:%d \n",p->nice);
+      if(p->state == RUNNABLE && p->nice == min_nice){
+        // cprintf("switch to %d min nice is %d \n",p->pid,min_nice);
 
-      swtch(&(c->scheduler), priority_p->context);
-      switchkvm();
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        c->proc = 0;
+      }
     }
     
     release(&ptable.lock);
@@ -548,6 +547,8 @@ int setnice(int pid, int nice_value){
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->nice = nice_value;
+      // cprintf("set nice,proc is %d ,new nice is:%d\n",pid,nice_value);
+      myproc()->state = RUNNABLE;
       sched();
       release(&ptable.lock);
       return 0;
@@ -574,18 +575,42 @@ int getnice(int pid){
 
 void ps(int pid){
   struct proc *p;
-  acquire(&ptable.lock);
   cprintf("pid  ppid  prio  state name\n");
+  acquire(&ptable.lock);
   if(pid){
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->pid == pid){
-        cprintf("%d %d  %d  %s  %s",p->pid,p->parent->pid,p->nice,p->state,p->name);
+        cprintf("%d %d  %d  %s  %s\n",p->pid,p->parent->pid,p->nice,p->state,p->name);
         break;
       }
     }
   } else {
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      cprintf("%d %d  %d  %s  %s",p->pid,p->parent->pid,p->nice,p->state,p->name);
+    for(p = ptable.proc;p < &ptable.proc[NPROC]; p++){
+      if(p->state!=0){
+        char* state=0;
+        switch (p->state)
+        {
+        case 1:
+          state = "embryo";
+          break;
+        case 2:
+          state = "sleep";
+          break;
+        case 3:
+          state = "runable";
+          break;
+        case 4:
+          state = "run";
+          break;
+        case 5:
+          state = "zombie";
+          break;
+        default:
+          state = "unused";
+          break;
+        }
+        cprintf("%d %d  %d  %s  %s\n",p->pid,p->parent->pid,p->nice,state,p->name);
+      }
     }
   }
   release(&ptable.lock);
