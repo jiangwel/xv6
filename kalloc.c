@@ -9,6 +9,8 @@
 #include "mmu.h"
 #include "spinlock.h"
 
+uint pgrefcount[PHYSTOP>>PGSHIFT];
+
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
                    // defined by the kernel linker script in kernel.ld
@@ -23,6 +25,18 @@ struct {
   int use_lock;
   struct run *freelist;
 } kmem;
+
+uint get_refcounter(uint pa){
+  return pgrefcount[pa>>PGSHIFT];
+}
+
+void dec_refcounter(uint pa){
+  pgrefcount[pa>>PGSHIFT]--;
+}
+
+void inc_refcounter(uint pa){
+  pgrefcount[pa>>PGSHIFT]++;
+}
 
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
@@ -51,6 +65,10 @@ freerange(void *vstart, void *vend)
   p = (char*)PGROUNDUP((uint)vstart);
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
     kfree(p);
+
+  for(int i=0;i<PHYSTOP>>PGSHIFT;i++){
+    pgrefcount[i]=0;
+  }
 }
 //PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,
@@ -61,21 +79,21 @@ void
 kfree(char *v)
 {
   struct run *r;
-
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
-
-  // Fill with junk to catch dangling refs.
-  memset(v, 1, PGSIZE);
-
-  if(kmem.use_lock)
+  dec_refcounter(V2P(v));
+  if(get_refcounter(V2P(v))==0){
+    // Fill with junk to catch dangling refs.
+    memset(v, 1, PGSIZE);
+    if(kmem.use_lock)
     acquire(&kmem.lock);
-  numfreepages++;
-  r = (struct run*)v;
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  if(kmem.use_lock)
-    release(&kmem.lock);
+    numfreepages++;
+    r = (struct run*)v;
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    if(kmem.use_lock)
+      release(&kmem.lock);
+  }
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -94,10 +112,12 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
+  pgrefcount[V2P((char*)r)>>PGSHIFT]=1;
   return (char*)r;
 }
 
 int freemem(){
   return numfreepages;
 }
+
 
