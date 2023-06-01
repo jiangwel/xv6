@@ -320,19 +320,19 @@ copyuvm(pde_t *pgdir, uint sz)
   uint pa, i, flags;
   char *mem;
 
-  if((d = setupkvm()) == 0)
+  if((d = setupkvm()) == 0) //create a new page directory for the child process
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0) //get the page table entry for the parent process
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
-    pa = PTE_ADDR(*pte);
+    pa = PTE_ADDR(*pte); //get the physical address of the page table entry
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    if((mem = kalloc()) == 0) //allocate a new physical page for the child process
       goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0)
+    memmove(mem, (char*)P2V(pa), PGSIZE); //copy the contents of the parent process's page to the child process's page
+    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) //map the child process's page to the new physical page
       goto bad;
   }
   return d;
