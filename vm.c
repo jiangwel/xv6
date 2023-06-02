@@ -336,7 +336,7 @@ copyuvm(pde_t *pgdir, uint sz)
     if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) //map the child process's page to the new physical page
       goto bad;
     inc_refcounter(pa);
-    cprintf("copyuvm inc_refcounter\n");
+    // cprintf("copyuvm inc_refcounter\n");
     if((child_pte = walkpgdir(d, (void *) i, 0)) == 0) //get the page table entry for the parent process
       panic("copyuvm: child_pte should exist");
     *child_pte = *child_pte & ~PTE_W;
@@ -399,12 +399,10 @@ pagefault(void){
   // pde_t *pgdir;
   // pte = walkpgdir(d, (void *) va, 0);
   if((pte = walkpgdir(d, (void *) va, 0)) == 0){ //get the page table entry for the parent process
-    cprintf("pagefault: pte should exist\n");
-    return;
+    panic("pagefault: pte should exist\n");
   }
   if(!(*pte & PTE_P)){
-    cprintf("pagefault: page not present\n");
-    return;
+    panic("pagefault: page not present\n");
   }
   pa = PTE_ADDR(*pte); //get the physical address of the page table entry
   if(pa == 0)
@@ -422,13 +420,13 @@ pagefault(void){
     // if(mappages(d, (void*)va, PGSIZE, V2P(mem), flags)<0)
     //   panic("pagefault: mappages failed");
     dec_refcounter(pa);
-    cprintf("pagefault: dec_refcounter,id: %d\n",pa>>PGSHIFT);
+    // cprintf("pagefault: dec_refcounter,id: %d\n",pa>>PGSHIFT);
   } else if (refcounter == 1){
-    cprintf("pagefault refcounter=1\n");
+    // cprintf("pagefault refcounter=1\n");
     *pte = *pte|PTE_W;
   }
   lcr3(V2P(d));
-  cprintf("pagefault end\n");
+  // cprintf("pagefault end\n");
 }
 
 //PAGEBREAK!

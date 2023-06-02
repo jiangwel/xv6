@@ -48,7 +48,7 @@ trap(struct trapframe *tf)
 
   switch(tf->trapno){
   case T_PGFLT:
-    cprintf("trap: page fault\n");
+    // cprintf("trap: page fault\n");
     pagefault();
     break;
   case T_IRQ0 + IRQ_TIMER:
@@ -62,16 +62,16 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
-    cprintf("trap: IDE interrupt\n");
+    // cprintf("trap: IDE interrupt\n");
     ideintr();
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE+1:
-    cprintf("trap: IDE1 interrupt\n");
+    // cprintf("trap: IDE1 interrupt\n");
     // Bochs generates spurious IDE1 interrupts.
     break;
   case T_IRQ0 + IRQ_KBD:
-    cprintf("trap: keyboard interrupt\n");
+    // cprintf("trap: keyboard interrupt\n");
     kbdintr();
     lapiceoi();
     break;
