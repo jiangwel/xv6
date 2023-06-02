@@ -8,6 +8,9 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "spinlock.h"
+#include "stdio.h"
+
+uint pgrefcount[PHYSTOP>>PGSHIFT];
 
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
@@ -23,6 +26,20 @@ struct {
   int use_lock;
   struct run *freelist;
 } kmem;
+
+uint get_refcounter(uint pa){
+  return pgrefcount[pa>>PGSHIFT];
+}
+
+void dec_refcounter(uint pa){
+  pgrefcount[pa>>PGSHIFT]--;
+  // cprintf("dec_refcounter page id: %d ; value is: \n",pa>>PGSHIFT,pgrefcount[pa>>PGSHIFT]);
+}
+
+void inc_refcounter(uint pa){
+  pgrefcount[pa>>PGSHIFT]++;
+  cprintf("inc_refcounter page id: %d ; value is: %d\n",pa>>PGSHIFT,pgrefcount[pa>>PGSHIFT]);
+}
 
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
@@ -51,6 +68,10 @@ freerange(void *vstart, void *vend)
   p = (char*)PGROUNDUP((uint)vstart);
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
     kfree(p);
+
+  for(int i=0;i<PHYSTOP>>PGSHIFT;i++){
+    pgrefcount[i]=1;
+  }
 }
 //PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,
@@ -61,19 +82,20 @@ void
 kfree(char *v)
 {
   struct run *r;
-
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
-
+  dec_refcounter(V2P(v));
+  // cprintf("kfree: dec_refcounter\n");
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
-
   if(kmem.use_lock)
     acquire(&kmem.lock);
   numfreepages++;
   r = (struct run*)v;
   r->next = kmem.freelist;
   kmem.freelist = r;
+  // if(get_refcounter(V2P(v))==0){
+  // }
   if(kmem.use_lock)
     release(&kmem.lock);
 }
@@ -94,10 +116,12 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
+  pgrefcount[V2P((char*)r)>>PGSHIFT]=1;
   return (char*)r;
 }
 
 int freemem(){
   return numfreepages;
 }
+
 
