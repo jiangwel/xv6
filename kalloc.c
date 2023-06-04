@@ -12,6 +12,8 @@
 
 uint pgrefcount[PHYSTOP>>PGSHIFT];
 
+uint pgrefcount[PHYSTOP>>PGSHIFT];
+
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
                    // defined by the kernel linker script in kernel.ld
@@ -122,6 +124,7 @@ kalloc(void)
   pgrefcount[V2P((char*)r)>>PGSHIFT]=1;
   if(kmem.use_lock)
     release(&kmem.lock);
+  pgrefcount[V2P((char*)r)>>PGSHIFT]=1;
   return (char*)r;
 }
 
