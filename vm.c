@@ -318,7 +318,7 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte,*child_pte;
   uint pa, i, flags;
-  char *mem;
+  // char *mem;
 
   if((d = setupkvm()) == 0) //create a new page directory for the child process
     return 0;
@@ -342,6 +342,7 @@ copyuvm(pde_t *pgdir, uint sz)
     *child_pte = *child_pte & ~PTE_W;
   }
   lcr3(V2P(pgdir));
+  lcr3(V2P(d));
   return d;
 
 bad:
@@ -395,11 +396,12 @@ pagefault(void){
   uint va = rcr2();
   uint pa,refcounter,flags;
   pte_t *pte;
-  pde_t *d = myproc()->pgdir;// is child's pgdir?
+  pde_t *d = myproc()->pgdir;
+  // cprintf("pagefault: pid is: %d parent's pid is: %d\n",myproc()->pid,myproc()->parent->pid);
   // pde_t *pgdir;
   // pte = walkpgdir(d, (void *) va, 0);
   if((pte = walkpgdir(d, (void *) va, 0)) == 0){ //get the page table entry for the parent process
-    panic("pagefault: pte should exist\n");
+    cprintf("pagefault: pte should exist\n");
   }
   if(!(*pte & PTE_P)){
     panic("pagefault: page not present\n");
