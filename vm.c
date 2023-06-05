@@ -316,25 +316,27 @@ pde_t*
 copyuvm(pde_t *pgdir, uint sz)
 {
   pde_t *d;
-  pte_t *pte;
+  pte_t *pte,*child_pte;
   uint pa, i, flags;
-  char *mem;
 
-  if((d = setupkvm()) == 0)
+  if((d = setupkvm()) == 0) //create a new page directory for the child process
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0) //get the page table entry for the parent process
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
-    pa = PTE_ADDR(*pte);
+    pa = PTE_ADDR(*pte); //get the physical address of the page table entry
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) //map the child process's page to the new physical page
       goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0)
-      goto bad;
+    inc_refcounter(pa);
+    if((child_pte = walkpgdir(d, (void *) i, 0)) == 0) //get the page table entry for the parent process
+      panic("copyuvm: child_pte should exist");
+    *child_pte = *child_pte & ~PTE_W;
   }
+  lcr3(V2P(pgdir));
+  lcr3(V2P(d));
   return d;
 
 bad:
@@ -381,6 +383,38 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
     va = va0 + PGSIZE;
   }
   return 0;
+}
+
+void 
+pagefault(void){
+  uint va = rcr2();
+  uint pa,refcounter,flags;
+  pte_t *pte;
+  pde_t *d = myproc()->pgdir;
+
+  if((pte = walkpgdir(d, (void *) va, 0)) == 0){
+    cprintf("pagefault: pte should exist\n");
+  }
+  if(!(*pte & PTE_P)){
+    panic("pagefault: page not present\n");
+  }
+  pa = PTE_ADDR(*pte);
+  if(pa == 0)
+    panic("pagefault: pa is 0");
+
+  refcounter = get_refcounter(pa);
+  if(refcounter > 1){
+    char *mem;
+    if((mem = kalloc()) == 0)
+      panic("pagefault: kalloc failed ");
+    memmove(mem, (char*)P2V(pa), PGSIZE);
+    flags = PTE_FLAGS(*pte);
+    *pte =  V2P(mem)|flags| PTE_P;
+    dec_refcounter(pa);
+  } else if (refcounter == 1){
+    *pte = *pte|PTE_W;
+  }
+  lcr3(V2P(d));
 }
 
 //PAGEBREAK!
