@@ -72,7 +72,7 @@ int				freemem(void);
 uint            get_refcounter(uint pa);
 void            dec_refcounter(uint pa);
 void            inc_refcounter(uint pa);
-extern uint     pgrefcount[];
+// extern uint     pgrefcount[];
 
 // kbd.c
 void            kbdintr(void);

@@ -9,8 +9,36 @@
 #include "mmu.h"
 #include "spinlock.h"
 #include "stdio.h"
+struct {
+  struct spinlock lock;
+  int use_lock;
+  struct run *freelist;
+  uint pgrefcount[PHYSTOP>>PGSHIFT];
+} kmem;
 
-uint pgrefcount[PHYSTOP>>PGSHIFT];
+void dec_refcounter(uint pa)
+{
+  acquire(&kmem.lock);
+  --kmem.pgrefcount[pa >> PGSHIFT];
+  release(&kmem.lock);
+}
+
+void inc_refcounter(uint pa)
+{
+  acquire(&kmem.lock);
+  ++kmem.pgrefcount[pa >> PGSHIFT];
+  release(&kmem.lock);
+}
+uint get_refcounter(uint pa)
+{
+  uint count;
+
+  acquire(&kmem.lock);
+  count = kmem.pgrefcount[pa >> PGSHIFT];
+  release(&kmem.lock);
+
+  return count;
+}
 
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
@@ -20,26 +48,6 @@ int numfreepages = 0;
 struct run {
   struct run *next;
 };
-
-struct {
-  struct spinlock lock;
-  int use_lock;
-  struct run *freelist;
-} kmem;
-
-uint get_refcounter(uint pa){
-  return pgrefcount[pa>>PGSHIFT];
-}
-
-void dec_refcounter(uint pa){
-  pgrefcount[pa>>PGSHIFT]--;
-  // cprintf("dec_refcounter page id: %d ; value is: \n",pa>>PGSHIFT,pgrefcount[pa>>PGSHIFT]);
-}
-
-void inc_refcounter(uint pa){
-  pgrefcount[pa>>PGSHIFT]++;
-  // cprintf("inc_refcounter page id: %d ; value is: %d\n",pa>>PGSHIFT,pgrefcount[pa>>PGSHIFT]);
-}
 
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
@@ -67,9 +75,7 @@ freerange(void *vstart, void *vend)
   char *p;
   p = (char*)PGROUNDUP((uint)vstart);
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE){
-    while(get_refcounter(V2P(p))>0){
-      dec_refcounter(V2P(p));
-    }
+    kmem.pgrefcount[V2P(p) >> PGSHIFT] = 0;          // initialse the reference count to 0
     kfree(p);
   }
 }
@@ -82,27 +88,27 @@ void
 kfree(char *v)
 {
   struct run *r;
+
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
-  
-  // cprintf("kfree: dec_refcounter\n");
-  // Fill with junk to catch dangling refs.
-  memset(v, 1, PGSIZE);
 
-  if(get_refcounter(V2P(v))>0){
-    dec_refcounter(V2P(v));
-  }
-  
-  if(get_refcounter(V2P(v))==0){
-    if(kmem.use_lock)
-      acquire(&kmem.lock);
-    numfreepages++;
-    r = (struct run*)v;
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r = (struct run*)v;
+
+  if(kmem.pgrefcount[V2P(v) >> PGSHIFT] > 0)         // Decrement the reference count of a page whenever someone frees it
+    --kmem.pgrefcount[V2P(v) >> PGSHIFT];
+
+  if(kmem.pgrefcount[V2P(v) >> PGSHIFT] == 0){       // Free the page only if there are no references to the page
+    // Fill with junk to catch dangling refs.
+    memset(v, 1, PGSIZE);
+    numfreepages++;                                // Increment the number of free pages by 1 when a page is freed
     r->next = kmem.freelist;
     kmem.freelist = r;
-    if(kmem.use_lock)
-      release(&kmem.lock);
+
   }
+  if(kmem.use_lock)
+    release(&kmem.lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -115,11 +121,13 @@ kalloc(void)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  numfreepages--;
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
-  pgrefcount[V2P((char*)r)>>PGSHIFT]=1;
+    numfreepages--;                                  // Decrement the number of free pages by 1 on a page allocation
+    kmem.pgrefcount[V2P((char*)r) >> PGSHIFT] = 1;     // reference count of a page is set to one when it is allocated
+
+  }
   if(kmem.use_lock)
     release(&kmem.lock);
   return (char*)r;
@@ -128,5 +136,6 @@ kalloc(void)
 int freemem(){
   return numfreepages;
 }
+
 
 
