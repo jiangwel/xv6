@@ -8,7 +8,6 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "spinlock.h"
-#include "stdio.h"
 
 uint pgrefcount[PHYSTOP>>PGSHIFT];
 
@@ -65,6 +64,7 @@ freerange(void *vstart, void *vend)
   char *p;
   p = (char*)PGROUNDUP((uint)vstart);
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE){
+    // pgrefcount[V2P(p)>>PGSHIFT] = 0;
     while(get_refcounter(V2P(p))>0){
       dec_refcounter(V2P(p));
     }
@@ -88,7 +88,6 @@ kfree(char *v)
   if(get_refcounter(V2P(v))>0){
     dec_refcounter(V2P(v));
   }
-  
   if(get_refcounter(V2P(v))==0){
     if(kmem.use_lock)
       acquire(&kmem.lock);
@@ -112,9 +111,8 @@ kalloc(void)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  numfreepages--;
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
   pgrefcount[V2P((char*)r)>>PGSHIFT]=1;
   if(kmem.use_lock)
@@ -125,5 +123,3 @@ kalloc(void)
 int freemem(){
   return numfreepages;
 }
-
-
