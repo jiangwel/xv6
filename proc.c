@@ -241,11 +241,13 @@ exit(void)
       curproc->ofile[fd] = 0;
     }
   }
+  // cprintf("@1");
 
   begin_op();
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+  // cprintf("@2");
 
   acquire(&ptable.lock);
 
@@ -260,11 +262,13 @@ exit(void)
         wakeup1(initproc);
     }
   }
+  // cprintf("@3");
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
+  // cprintf("@4");
 }
 
 // Wait for a child process to exit and return its pid.
@@ -272,6 +276,7 @@ exit(void)
 int
 wait(void)
 {
+  // cprintf("@1");
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
@@ -299,15 +304,18 @@ wait(void)
         return pid;
       }
     }
+    // cprintf("@2");
 
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
       release(&ptable.lock);
       return -1;
     }
+    // cprintf("@3");
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    // cprintf("@4");
   }
 }
 
@@ -365,6 +373,7 @@ scheduler(void)
 void
 sched(void)
 {
+  // cprintf("@5");
   int intena;
   struct proc *p = myproc();
 
@@ -376,9 +385,14 @@ sched(void)
     panic("sched running");
   if(readeflags()&FL_IF)
     panic("sched interruptible");
+  // cprintf("@6");
   intena = mycpu()->intena;
+  // cprintf("@7");
   swtch(&p->context, mycpu()->scheduler);
+  // cprintf("@8");
   mycpu()->intena = intena;
+  // cprintf("@9");
+
 }
 
 // Give up the CPU for one scheduling round.

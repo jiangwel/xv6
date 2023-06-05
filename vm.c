@@ -341,6 +341,9 @@ copyuvm(pde_t *pgdir, uint sz)
 
 bad:
   freevm(d);
+  // Even though we failed to copy, we should flush TLB, since
+  // some entries in the original process page table have been changed
+  lcr3(V2P(pgdir));
   return 0;
 }
 
