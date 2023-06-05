@@ -33,12 +33,10 @@ uint get_refcounter(uint pa){
 
 void dec_refcounter(uint pa){
   pgrefcount[pa>>PGSHIFT]--;
-  // cprintf("dec_refcounter page id: %d ; value is: \n",pa>>PGSHIFT,pgrefcount[pa>>PGSHIFT]);
 }
 
 void inc_refcounter(uint pa){
   pgrefcount[pa>>PGSHIFT]++;
-  // cprintf("inc_refcounter page id: %d ; value is: %d\n",pa>>PGSHIFT,pgrefcount[pa>>PGSHIFT]);
 }
 
 // Initialization happens in two phases.
@@ -85,9 +83,7 @@ kfree(char *v)
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
   
-  // cprintf("kfree: dec_refcounter\n");
   // Fill with junk to catch dangling refs.
-  memset(v, 1, PGSIZE);
 
   if(get_refcounter(V2P(v))>0){
     dec_refcounter(V2P(v));
@@ -96,6 +92,7 @@ kfree(char *v)
   if(get_refcounter(V2P(v))==0){
     if(kmem.use_lock)
       acquire(&kmem.lock);
+    memset(v, 1, PGSIZE);
     numfreepages++;
     r = (struct run*)v;
     r->next = kmem.freelist;

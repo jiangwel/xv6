@@ -318,7 +318,6 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte,*child_pte;
   uint pa, i, flags;
-  // char *mem;
 
   if((d = setupkvm()) == 0) //create a new page directory for the child process
     return 0;
@@ -327,16 +326,11 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
-    // *pte = *pte & ~PTE_W;
     pa = PTE_ADDR(*pte); //get the physical address of the page table entry
     flags = PTE_FLAGS(*pte);
-    // if((mem = kalloc()) == 0) //allocate a new physical page for the child process
-    //   goto bad;
-    // memmove(mem, (char*)P2V(pa), PGSIZE); //copy the contents of the parent process's page to the child process's page
     if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) //map the child process's page to the new physical page
       goto bad;
     inc_refcounter(pa);
-    // cprintf("copyuvm inc_refcounter\n");
     if((child_pte = walkpgdir(d, (void *) i, 0)) == 0) //get the page table entry for the parent process
       panic("copyuvm: child_pte should exist");
     *child_pte = *child_pte & ~PTE_W;
@@ -397,16 +391,13 @@ pagefault(void){
   uint pa,refcounter,flags;
   pte_t *pte;
   pde_t *d = myproc()->pgdir;
-  // cprintf("pagefault: pid is: %d parent's pid is: %d\n",myproc()->pid,myproc()->parent->pid);
-  // pde_t *pgdir;
-  // pte = walkpgdir(d, (void *) va, 0);
-  if((pte = walkpgdir(d, (void *) va, 0)) == 0){ //get the page table entry for the parent process
+  if((pte = walkpgdir(d, (void *) va, 0)) == 0){
     cprintf("pagefault: pte should exist\n");
   }
   if(!(*pte & PTE_P)){
     panic("pagefault: page not present\n");
   }
-  pa = PTE_ADDR(*pte); //get the physical address of the page table entry
+  pa = PTE_ADDR(*pte); 
   if(pa == 0)
     panic("pagefault: pa is 0");
 
@@ -418,17 +409,11 @@ pagefault(void){
     memmove(mem, (char*)P2V(pa), PGSIZE);
     flags = PTE_FLAGS(*pte);
     *pte =  V2P(mem)|flags| PTE_P;
-    // flags = PTE_FLAGS(*pte);
-    // if(mappages(d, (void*)va, PGSIZE, V2P(mem), flags)<0)
-    //   panic("pagefault: mappages failed");
     dec_refcounter(pa);
-    // cprintf("pagefault: dec_refcounter,id: %d\n",pa>>PGSHIFT);
   } else if (refcounter == 1){
-    // cprintf("pagefault refcounter=1\n");
     *pte = *pte|PTE_W;
   }
   lcr3(V2P(d));
-  // cprintf("pagefault end\n");
 }
 
 //PAGEBREAK!

@@ -48,11 +48,9 @@ trap(struct trapframe *tf)
 
   switch(tf->trapno){
   case T_PGFLT:
-    // cprintf("trap: page fault\n");
     pagefault();
     break;
   case T_IRQ0 + IRQ_TIMER:
-    // cprintf("trap: timer interrupt\n");
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
@@ -62,21 +60,17 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
-    // cprintf("trap: IDE interrupt\n");
     ideintr();
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE+1:
-    // cprintf("trap: IDE1 interrupt\n");
     // Bochs generates spurious IDE1 interrupts.
     break;
   case T_IRQ0 + IRQ_KBD:
-    // cprintf("trap: keyboard interrupt\n");
     kbdintr();
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_COM1:
-    // cprintf("trap: serial port interrupt\n");
     uartintr();
     lapiceoi();
     break;
@@ -102,7 +96,6 @@ trap(struct trapframe *tf)
             tf->err, cpuid(), tf->eip, rcr2());
     myproc()->killed = 1;
   }
-  // cprintf("trap:end switch\n");
 
 
   // Force process exit if it has been killed and is in user space.
@@ -120,5 +113,4 @@ trap(struct trapframe *tf)
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
-  // cprintf("exit trap\n");
 }
